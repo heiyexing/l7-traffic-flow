@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "@antv/l7": "^2.8.35",
+    "antd": "^4.20.5",
     "lodash": "^4.17.21",
     "lodash-es": "^4.17.21",
     "md5": "^2.3.0",
@@ -46,6 +47,7 @@
     "gh-pages": "^3.0.0",
     "lint-staged": "^10.0.7",
     "prettier": "^2.2.1",
+    "react-json-tree": "^0.16.2",
     "yorkie": "^2.0.0"
   }
 }

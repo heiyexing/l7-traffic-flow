@@ -8,7 +8,12 @@ export type FlowData = {
   from_id: string;
   to_id: string;
   value: number;
-}
+};
+
+export type TotalData = {
+  locations: LocationData[];
+  flows: FlowData[];
+};
 
 export type OdData = {
   from_lng: string;
