@@ -36,7 +36,6 @@ export const RED_COLOR_LIST = [
   'rgb(130, 0, 20)',
   'rgb(92, 0, 17)',
 ];
-
 /**
  Ant design 颜色爬取脚本 https://ant.design/docs/spec/colors-cn
 
