@@ -8,6 +8,7 @@ export const DEFAULT_LOCATION_FLOW_FIELD_GETTER: LocationFlowFieldGetter = {
   getFlowFromId: 'fromId',
   getFlowToId: 'toId',
   getFlowWeight: 'weight',
+  getFlowId: 'id',
 };
 
 export const DEFAULT_OD_FIELD_GETTER: OdFieldGetter = {

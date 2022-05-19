@@ -1,5 +1,6 @@
-import {Accessor, NodeItem} from '../types';
+import { Accessor, NodeItem } from '../types';
 import { get } from 'lodash';
+import { v4 } from 'uuid';
 
 export * from './transform';
 export * from './location';
@@ -17,4 +18,9 @@ export function getValueByAccessor<ValueType = any>(
 
 export function isClusterNode(node: NodeItem) {
   return !!node.isCluster;
+}
+
+let i = 1;
+export function getUUid() {
+  return String(i++);
 }

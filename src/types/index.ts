@@ -24,9 +24,10 @@ export interface LocationFlowFieldGetter {
   getLocationLat: Accessor<number>;
   getLocationId: Accessor<string>;
   getLocationWeight: Accessor<number>;
+  getFlowId: Accessor<string>;
   getFlowFromId: Accessor<string>;
   getFlowToId: Accessor<string>;
-  getFlowWeight: Accessor<string>;
+  getFlowWeight: Accessor<number>;
 }
 
 export interface OdFieldGetter {
@@ -55,14 +56,6 @@ export interface ClusterItem extends LocationItem {
   childIds?: string[];
 }
 
-export interface FlowItem {
-  fromId: string;
-  toId: string;
-  weight: number;
-  isCluster?: boolean;
-  data: any;
-}
-
 export type LocationFlow = {
   locations: LocationItem[];
   flows: FlowItem[];
@@ -78,7 +71,22 @@ export type NodeLevel = {
   tree: KDBush<NodeItem>;
 };
 
+export interface FlowItem {
+  id: string;
+  fromId: string;
+  toId: string;
+  fromLng?: number;
+  fromLat?: number;
+  toLng?: number;
+  toLat?: number;
+  weight: number;
+  isCluster?: boolean;
+  data: any;
+  zoom: number;
+}
+
 export interface FlowClusterItem extends FlowItem {
+  childIds?: string[];
   isCluster: true;
 }
 

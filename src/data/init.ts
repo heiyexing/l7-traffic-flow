@@ -23,6 +23,35 @@ export function initLocationsData(
   });
 }
 
-export function initFlowsData(originData: any[], options: DataProviderOptions): FlowItem[] {
-  return [];
+export function initFlowsData(
+  originData: any[],
+  locations: LocationItem[],
+  { getFlowId, getFlowFromId, getFlowToId, getFlowWeight }: DataProviderOptions,
+): FlowItem[] {
+  const locationMap = new Map(locations.map((location) => [location.id, location]));
+  return originData
+    .map((item) => {
+      const fromId = String(getValueByAccessor<string>(item, getFlowFromId));
+      const toId = String(getValueByAccessor<string>(item, getFlowToId));
+      const fromLocation = locationMap.get(fromId);
+      const toLocation = locationMap.get(toId);
+      if (!fromLocation || !toLocation) {
+        return undefined;
+      }
+      const flow: FlowItem = {
+        id: String(getValueByAccessor<string>(item, getFlowId)),
+        fromId: String(getValueByAccessor<string>(item, getFlowFromId)),
+        toId: String(getValueByAccessor<string>(item, getFlowToId)),
+        fromLat: fromLocation.lat,
+        fromLng: fromLocation.lng,
+        toLat: toLocation.lat,
+        toLng: toLocation.lng,
+        data: item,
+        isCluster: false,
+        weight: +getValueByAccessor<number>(item, getFlowWeight),
+        zoom: Infinity,
+      };
+      return flow;
+    })
+    .filter((flow) => !!flow) as FlowItem[];
 }

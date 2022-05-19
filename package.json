@@ -39,6 +39,7 @@
   "devDependencies": {
     "@testing-library/jest-dom": "^5.15.1",
     "@testing-library/react": "^12.1.2",
+    "@turf/turf": "^6.5.0",
     "@types/jest": "^27.0.3",
     "@types/kdbush": "^3.0.1",
     "@types/lodash": "^4.14.182",
