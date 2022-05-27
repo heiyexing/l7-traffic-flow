@@ -3,6 +3,7 @@ import 'antd/dist/antd.css';
 import CompareJson from './CompareJson';
 import { DataProvider } from '@antv/l7-traffic-flow';
 import { GaodeMapV2, PointLayer, Scene } from '@antv/l7';
+import { debounce } from 'lodash';
 
 const Index: React.FC = () => {
   const [originData, setOriginData] = useState<any>({});
@@ -47,7 +48,7 @@ const Index: React.FC = () => {
           },
         })
         .shape('circle')
-        .size('weight', [2, 30])
+        .size('weight', [5, 30])
         .color('weight', [
           'rgba(179, 217, 255, 1)',
           'rgba(94,175,255,1)',
@@ -92,34 +93,40 @@ const Index: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const onZoomChange = () => {
-      const zoom = scene?.getZoom() ?? 0;
-      setCurrentZoom(zoom);
+    const onZoomChange = debounce(
+      () => {
+        const zoom = scene?.getZoom() ?? 0;
+        setCurrentZoom(zoom);
 
-      const zoomList = resultData.map((item: any) => {
-        return Math.abs(item.zoom - zoom);
-      });
-      const minIndex = zoomList.indexOf(Math.min(...zoomList));
-      const { zoom: newDataZoom, nodes } = resultData[minIndex];
-      if (newDataZoom === dataZoom) {
-        return;
-      }
-      setDataZoom(newDataZoom);
-      pointLayer?.setData(nodes, {
-        parser: {
-          type: 'json',
-          x: 'lng',
-          y: 'lat',
-        },
-      });
-      // textLayer?.setData(nodes, {
-      //   parser: {
-      //     type: 'json',
-      //     x: 'lng',
-      //     y: 'lat',
-      //   },
-      // });
-    };
+        const zoomList = resultData.map((item: any) => {
+          return Math.abs(item.zoom - zoom);
+        });
+        const minIndex = zoomList.indexOf(Math.min(...zoomList));
+        const { zoom: newDataZoom, nodes } = resultData[minIndex];
+        if (newDataZoom === dataZoom) {
+          return;
+        }
+        setDataZoom(newDataZoom);
+        pointLayer?.setData(nodes, {
+          parser: {
+            type: 'json',
+            x: 'lng',
+            y: 'lat',
+          },
+        });
+        // textLayer?.setData(nodes, {
+        //   parser: {
+        //     type: 'json',
+        //     x: 'lng',
+        //     y: 'lat',
+        //   },
+        // });
+      },
+      100,
+      {
+        maxWait: 100,
+      },
+    );
     if (resultData.length && scene && pointLayer) {
       scene.on('zoomchange', onZoomChange);
       onZoomChange();

@@ -38,7 +38,7 @@ export interface OdFieldGetter {
   getWeight: Accessor<number>;
 }
 
-export interface LocationItem {
+export interface LocationItem<L = any> {
   id: string;
   lng: number;
   lat: number;
@@ -46,14 +46,10 @@ export interface LocationItem {
   y: number;
   zoom: number;
   weight: number;
-  clusterId?: string;
   isCluster?: boolean;
-  data?: any;
-}
-
-export interface ClusterItem extends LocationItem {
-  isCluster: true;
+  clusterId?: string;
   childIds?: string[];
+  data?: L;
 }
 
 export type LocationFlow = {
@@ -61,14 +57,12 @@ export type LocationFlow = {
   flows: FlowItem[];
 };
 
-export type NodeItem = LocationItem | ClusterItem;
-
 // export type LinkItem =
 
 export type NodeLevel = {
   zoom: number;
-  nodes: NodeItem[];
-  tree: KDBush<NodeItem>;
+  nodes: LocationItem[];
+  tree: KDBush<LocationItem>;
 };
 
 export interface FlowItem {
@@ -90,7 +84,7 @@ export interface FlowClusterItem extends FlowItem {
   isCluster: true;
 }
 
-export type NodeMap = Map<string, NodeItem>;
+export type NodeMap = Map<string, LocationItem>;
 
 export type LinkItem = FlowItem | FlowClusterItem;
 

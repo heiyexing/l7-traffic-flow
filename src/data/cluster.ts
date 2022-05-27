@@ -1,9 +1,7 @@
 import {
-  ClusterItem,
   NodeLevel,
   LocationItem,
   MapState,
-  NodeItem,
   ClusterOptions,
   NodeMap,
   LinkItem,
@@ -12,10 +10,19 @@ import {
   FlowClusterItem,
 } from '../types';
 import KDBush from 'kdbush';
-import { getUUid, isClusterNode, x2Lng, y2Lat } from '../utils';
+import { getUUid, isClusterLocation, x2Lng, y2Lat } from '../utils';
 import { v4 } from 'uuid';
 import { differenceBy, pick } from 'lodash';
 
+/**
+ *
+ * @param x
+ * @param y
+ * @param zoom
+ * @param childIds
+ * @param id
+ * @param weight
+ */
 export function createClusterItem({
   x,
   y,
@@ -30,7 +37,7 @@ export function createClusterItem({
   childIds: string[];
   id: string;
   weight: number;
-}): ClusterItem {
+}): LocationItem {
   return {
     childIds,
     id,
@@ -46,11 +53,11 @@ export function createClusterItem({
 
 /**
  * 生成kdbush搜索树
- * @param nodes
+ * @param locations
  */
-export function getSearchTree(nodes: NodeItem[]) {
-  return new KDBush<NodeItem>(
-    nodes,
+export function getSearchTree(locations: LocationItem[]): KDBush<LocationItem> {
+  return new KDBush<LocationItem>(
+    locations,
     (p) => p.x,
     (p) => p.y,
     64,
@@ -58,56 +65,62 @@ export function getSearchTree(nodes: NodeItem[]) {
   );
 }
 
-export function getNodeCount(node: NodeItem) {
-  return (isClusterNode(node) ? (node as ClusterItem).childIds?.length : 1) ?? 1;
+export function getLocationCount(location: LocationItem) {
+  return (isClusterLocation(location) ? (location as LocationItem).childIds?.length : 1) ?? 1;
 }
 
-export function sortNodesByWeight(nodes: NodeItem[]) {
-  return nodes.sort((a, b) => a.weight - b.weight);
+export function sortLocationsByWeight(locations: LocationItem[]) {
+  return locations.sort((a, b) => a.weight - b.weight);
 }
 
-export function getNodesByZoom(
-  nodes: NodeItem[],
-  tree: KDBush<NodeItem>,
+/**
+ * 计算当前zoom下的聚合点数据
+ * @param locations: 上一层级的聚合点数据
+ * @param tree: 上一层级的聚合点数据对应的kd-tree
+ * @param zoom: 当前地图缩放比
+ * @param options: 聚合配置参数
+ */
+export function getLocationsByZoom(
+  locations: LocationItem[],
+  tree: KDBush<LocationItem>,
   zoom: number,
   options: ClusterOptions,
-): NodeItem[] {
-  const result: NodeItem[] = [];
-  const radius = 40 / (512 * Math.pow(2, zoom));
+): LocationItem[] {
+  const result: LocationItem[] = [];
+  const radius = 60 / (256 * Math.pow(2, zoom));
   const doneIdSet = new Set();
 
-  for (let index = 0; index < nodes.length; index++) {
-    const node = nodes[index];
-    if (doneIdSet.has(node.id)) {
+  for (let location of locations) {
+    if (doneIdSet.has(location.id)) {
       continue;
     }
-    const innerIndexes = tree.within(node.x, node.y, radius);
-    const childIds: string[] = [node.id];
-    doneIdSet.add(node.id);
+    const innerIndexes = tree.within(location.x, location.y, radius);
+    const childIds: string[] = [location.id];
+    doneIdSet.add(location.id);
 
-    let weight = node.weight;
-    let nodeCount = getNodeCount(node);
-    let weightX = node.x * weight;
-    let weightY = node.y * weight;
+    let weight = location.weight;
+    let locationCount = getLocationCount(location);
+    let weightX = location.x * weight;
+    let weightY = location.y * weight;
 
     const clusterId = getUUid();
     if (innerIndexes.length > 1) {
       for (const innerIndex of innerIndexes) {
-        const innerNode = tree.points[innerIndex];
-        if (doneIdSet.has(innerNode.id)) {
+        const innerLocation = tree.points[innerIndex];
+        if (doneIdSet.has(innerLocation.id)) {
           continue;
         }
-        doneIdSet.add(innerNode.id);
-        weight += innerNode.weight;
-        nodeCount += getNodeCount(innerNode);
-        weightX += innerNode.weight * innerNode.x;
-        weightY += innerNode.weight * innerNode.y;
-        innerNode.clusterId = clusterId;
-        childIds.push(innerNode.id);
+        doneIdSet.add(innerLocation.id);
+        weight += innerLocation.weight;
+        locationCount += getLocationCount(innerLocation);
+        weightX += innerLocation.weight * innerLocation.x;
+        weightY += innerLocation.weight * innerLocation.y;
+        innerLocation.clusterId = clusterId;
+        childIds.push(innerLocation.id);
       }
       // 仅当cluster子节点数量大于1时才升级了新Cluster
       if (childIds.length > 1) {
-        node.clusterId = clusterId;
+        location.clusterId = clusterId;
         result.push(
           createClusterItem({
             x: weightX / weight,
@@ -121,9 +134,9 @@ export function getNodesByZoom(
         continue;
       }
     }
-    result.push(node);
+    result.push(location);
   }
-  return sortNodesByWeight(result);
+  return sortLocationsByWeight(result);
 }
 
 /**
@@ -131,25 +144,25 @@ export function getNodesByZoom(
  * @param locations
  * @param options
  */
-export function getNodeLevels(locations: LocationItem[], options: ClusterOptions): NodeLevel[] {
+export function getLocationLevels(locations: LocationItem[], options: ClusterOptions): NodeLevel[] {
   if (!locations.length) {
     return [];
   }
-  const nodeLevels: NodeLevel[] = [];
+  const locationLevels: NodeLevel[] = [];
   const { minZoom, maxZoom, zoomStep } = options;
   const originNodes = locations.map((location) => {
     location.zoom = maxZoom;
     return location;
   });
-  let oldNodes: NodeItem[] = [...locations];
-  let tree = getSearchTree(oldNodes);
+  let oldLocations: LocationItem[] = [...locations];
+  let tree = getSearchTree(oldLocations);
   const originTree = tree;
   for (let zoom = maxZoom - zoomStep; zoom >= minZoom; zoom -= zoomStep) {
-    const newNodes = getNodesByZoom(oldNodes, tree, zoom, options);
-    if (newNodes.length < oldNodes.length) {
-      tree = getSearchTree(newNodes);
-      nodeLevels.push({
-        nodes: newNodes.map((node) => {
+    const newLocations = getLocationsByZoom(oldLocations, tree, zoom, options);
+    if (newLocations.length < oldLocations.length) {
+      tree = getSearchTree(newLocations);
+      locationLevels.push({
+        nodes: newLocations.map((node) => {
           node.zoom = zoom;
           return node;
         }),
@@ -157,11 +170,11 @@ export function getNodeLevels(locations: LocationItem[], options: ClusterOptions
         tree,
       });
     }
-    oldNodes = newNodes;
+    oldLocations = newLocations;
   }
-  if (nodeLevels.length) {
-    const newZoom = nodeLevels[0].zoom + zoomStep;
-    nodeLevels.unshift({
+  if (locationLevels.length) {
+    const newZoom = locationLevels[0].zoom + zoomStep;
+    locationLevels.unshift({
       nodes: originNodes.map((node) => {
         if (node.zoom === maxZoom) {
           node.zoom = newZoom;
@@ -172,7 +185,7 @@ export function getNodeLevels(locations: LocationItem[], options: ClusterOptions
       tree: originTree,
     });
   }
-  return nodeLevels;
+  return locationLevels;
 }
 
 export function getLinkKey(fromId: string, toId: string) {
@@ -209,14 +222,14 @@ export function createFlowClusterItem(
 
 export function getLinkLevels(
   flows: FlowItem[],
-  nodeLevels: NodeLevel[],
+  locationLevels: NodeLevel[],
   nodeMap: NodeMap,
   options: ClusterOptions,
 ): LinkLevel[] {
-  if (!nodeLevels.length || !flows.length) {
+  if (!locationLevels.length || !flows.length) {
     return [];
   }
-  const firstZoom = nodeLevels[0].zoom;
+  const firstZoom = locationLevels[0].zoom;
   const linkLevels: LinkLevel[] = [
     {
       zoom: firstZoom,
@@ -229,9 +242,9 @@ export function getLinkLevels(
 
   let { zoom: preZoom, links: preLinks } = linkLevels[0];
 
-  for (let index = 1; index < nodeLevels.length; index++) {
-    const links: LinkItem[] = [];
-    const { zoom, nodes } = nodeLevels[index];
+  for (let index = 1; index < locationLevels.length; index++) {
+    let links: LinkItem[] = [];
+    const { zoom, nodes } = locationLevels[index];
     const linkListMap = new Map<string, LinkItem[]>();
     const nodeIdSet = new Set(nodes.map((node) => node.id));
     for (const link of preLinks) {
@@ -282,13 +295,13 @@ export function getLinkLevels(
       });
       links.push(link);
     });
+    links.sort((a, b) => a.weight - b.weight);
     linkLevels.push({
       zoom,
-      links: links.sort((a, b) => a.weight - b.weight),
+      links,
     });
     preLinks = links;
     preZoom = zoom;
-    // console.log(linkListMap, nodes);
   }
   return linkLevels;
 }

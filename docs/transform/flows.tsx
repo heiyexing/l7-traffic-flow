@@ -4,6 +4,7 @@ import CompareJson from './CompareJson';
 import { DataProvider } from '@antv/l7-traffic-flow';
 import { GaodeMapV2, LineLayer, PointLayer, Scene } from '@antv/l7';
 import { bbox, featureCollection, point } from '@turf/turf';
+import { debounce } from 'lodash';
 
 const Index: React.FC = () => {
   const [originFlowData, setOriginFlowData] = useState<any>({});
@@ -52,7 +53,7 @@ const Index: React.FC = () => {
       map: new GaodeMapV2({
         style: 'dark',
         center: [120.17427737151957, 35.98158706693357],
-        zoom: 16,
+        zoom: 4,
       }),
     });
     scene.on('loaded', () => {
@@ -75,7 +76,6 @@ const Index: React.FC = () => {
         )
         .style({
           strokeWidth: 1,
-          opacity: 0.8,
         });
 
       const lineLayer = new LineLayer({})
@@ -92,7 +92,7 @@ const Index: React.FC = () => {
         .scale('weight', {
           type: 'quantile',
         })
-        .size('weight', [2, 10])
+        .size('weight', [2, 8])
         .color(
           'weight',
           ['#f7feae', '#b7e6a5', '#7ccba2', '#46aea0', '#089099', '#00718b', '#045275'].reverse(),
@@ -117,28 +117,34 @@ const Index: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const onZoomChange = () => {
-      const { nodes, links } = dataProvider?.getData(
-        bbox(featureCollection(scene?.getBounds().map((position) => point(position)) ?? [])),
-        scene?.getZoom(),
-      );
-      pointLayer?.setData(nodes, {
-        parser: {
-          type: 'json',
-          x: 'lng',
-          y: 'lat',
-        },
-      });
-      lineLayer?.setData(links, {
-        parser: {
-          type: 'json',
-          x: 'fromLng',
-          y: 'fromLat',
-          x1: 'toLng',
-          y1: 'toLat',
-        },
-      });
-    };
+    const onZoomChange = debounce(
+      () => {
+        const { nodes, links } = dataProvider?.getData(
+          bbox(featureCollection(scene?.getBounds().map((position) => point(position)) ?? [])),
+          scene?.getZoom(),
+        );
+        pointLayer?.setData(nodes, {
+          parser: {
+            type: 'json',
+            x: 'lng',
+            y: 'lat',
+          },
+        });
+        lineLayer?.setData(links, {
+          parser: {
+            type: 'json',
+            x: 'fromLng',
+            y: 'fromLat',
+            x1: 'toLng',
+            y1: 'toLat',
+          },
+        });
+      },
+      50,
+      {
+        maxWait: 50,
+      },
+    );
     if (
       resultLocationData.length &&
       resultFlowData.length &&
@@ -148,11 +154,13 @@ const Index: React.FC = () => {
       dataProvider
     ) {
       scene.on('zoomchange', onZoomChange);
+      scene.on('mapmove', onZoomChange);
       onZoomChange();
     }
 
     return () => {
       scene?.off('zoomchange', onZoomChange);
+      scene?.off('mapmove', onZoomChange);
     };
   }, [resultLocationData, resultFlowData, scene, pointLayer, lineLayer, dataZoom, dataProvider]);
 
@@ -168,7 +176,7 @@ const Index: React.FC = () => {
         <span>当前展示层级为：{currentZoom}</span>
         <span>数据展示层级为：{dataZoom}</span>
       </div>
-      <div id="map" style={{ height: 1000, position: 'relative' }}></div>
+      <div id="map" style={{ height: 500, position: 'relative' }}></div>
     </div>
   );
 };

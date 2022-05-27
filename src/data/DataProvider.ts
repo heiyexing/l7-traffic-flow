@@ -6,23 +6,25 @@ import {
   MapState,
   LinkLevel,
   NodeMap,
-  NodeItem,
+  LocationItem,
   LinkItem,
 } from '../types';
 import { initFlowsData, initLocationsData } from './init';
 import { DEFAULT_LOCATION_FLOW_FIELD_GETTER } from '../constant';
-import { getLinkLevels, getNodeLevels } from './cluster';
-import { Scene } from '@antv/l7';
+import { getLinkLevels, getLocationLevels } from './cluster';
 import { lat2Y, lng2X } from '../utils';
+import { unionBy } from 'lodash';
 
 export interface DataProviderOptions extends LocationFlowFieldGetter {
   zoomStep: number;
+  hideLimit: number;
 }
 
 export class DataProvider {
   static defaultOptions: DataProviderOptions = {
     ...DEFAULT_LOCATION_FLOW_FIELD_GETTER,
     zoomStep: 1,
+    hideLimit: 5000,
   };
 
   mapState: MapState = {
@@ -59,6 +61,7 @@ export class DataProvider {
     this.nodeLevels = this.getClusterLevels();
     this.nodeMap = this.getNodeMap();
     this.linkLevels = this.getLinkLevels();
+    console.log(this.nodeLevels, this.linkLevels);
   }
 
   get clusterOptions() {
@@ -69,7 +72,7 @@ export class DataProvider {
   }
 
   getClusterLevels() {
-    return getNodeLevels(
+    return getLocationLevels(
       this.data.locations.map((location) => location),
       this.clusterOptions,
     );
@@ -90,45 +93,52 @@ export class DataProvider {
     return getLinkLevels(this.data.flows, this.nodeLevels, this.nodeMap, this.clusterOptions);
   }
 
-  getData([lng1, lat1, lng2, lat2]: [number, number, number, number], zoom: number) {
-    let showNodes: NodeItem[] = [];
+  getData([lng1, lat1, lng2, lat2]: [number, number, number, number], currentZoom: number) {
+    let showLocations: LocationItem[] = [];
     let showLinks: LinkItem[] = [];
-    const nodeLevels = this.nodeLevels;
+    const locationLevels = this.nodeLevels;
     const linkLevels = this.linkLevels;
-    if (!nodeLevels.length || !linkLevels.length) {
+    if (!locationLevels.length || !linkLevels.length) {
       return {
         nodes: [],
         links: [],
       };
     }
-    let index =
-      nodeLevels.findIndex((nodeLevel) => {
-        console.log(nodeLevel.zoom, zoom);
-        return nodeLevel.zoom <= zoom;
-      }) - 1;
-    if (index < 0) {
-      index = 0;
-    }
-    console.log(index);
-    const { tree, nodes } = nodeLevels[index];
-    console.log(zoom);
-    console.log(nodeLevels[index].zoom);
+
+    const index: number = (() => {
+      if (currentZoom > locationLevels[0].zoom) {
+        return 0;
+      }
+      for (let i = 1; i < locationLevels.length; i++) {
+        const zoom1 = locationLevels[i - 1].zoom;
+        const zoom2 = locationLevels[i].zoom;
+        if (currentZoom <= zoom1 && zoom2 <= currentZoom) {
+          return i;
+        }
+      }
+      return locationLevels.length - 1;
+    })();
+
+    const { tree, nodes } = locationLevels[index];
     const { links } = linkLevels[index];
     const nodeIndexes = tree.range(lng2X(lng1), lat2Y(lat2), lng2X(lng2), lat2Y(lat1));
-    if (nodeIndexes.length === nodes.length) {
-      showNodes = nodes;
+    if (
+      nodeIndexes.length === nodes.length ||
+      nodes.length + links.length < this.options.hideLimit
+    ) {
+      showLocations = nodes;
       showLinks = links;
     } else if (nodeIndexes.length > 0) {
-      showNodes = nodeIndexes.map((index) => tree.points[index]);
-      const nodeIdSet = new Set(showNodes.map((node) => node.id));
-      showLinks = links.filter(({ fromId, toId }) => {
+      showLocations = nodeIndexes.map((index) => tree.points[index]);
+      const nodeIdSet = new Set(showLocations.map((node) => node.id));
+
+      showLinks = links.filter(({ fromId, toId, weight }) => {
         return nodeIdSet.has(fromId) || nodeIdSet.has(toId);
       });
     }
-
     return {
-      nodes: showNodes,
-      links: showLinks,
+      nodes: showLocations,
+      links: showLinks.sort((a, b) => a.weight - b.weight),
     };
   }
 }
